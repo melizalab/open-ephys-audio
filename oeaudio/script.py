@@ -118,6 +118,7 @@ def main(argv=None):
     # buffers, messages, or None
     sample_queue = queue.Queue(maxsize=args.buffer_size + 1)
     evt = threading.Event()
+    buffer_size = args.block_size * stim_queue.channels * ctypes.sizeof(ctypes.c_float)
 
     def _process(outdata, frames, time, status):
         """ Callback function for output stream thread """
@@ -141,9 +142,9 @@ def main(argv=None):
             # if the queue is empty, we just zero out the buffer
             outdata[:] = b'\x00'
 
-    # The main thread loads data into the buffer from files in the stimulus
-    # queue. Between stimuli, it loads zeros. To stop the stream thread, we send
-    # None.
+    # The main thread sends data into the queue from files in the stimulus
+    # queue. Between stimuli, it sends blocks of zeros. To stop the stream
+    # thread, we send None.
 
     # We first need to prefill the queue so that the buffer starts full.
     log.info("Starting playback:")
@@ -154,6 +155,8 @@ def main(argv=None):
     for _ in range(args.buffer_size):
         samples = stim.buffer_read(args.block_size, dtype='float32')
         sample_queue.put_nowait(samples)
+        if len(samples) < buffer_size:
+            break
 
     # then open the stream for writing
     stream = sd.RawOutputStream(
@@ -166,12 +169,11 @@ def main(argv=None):
         finished_callback=evt.set)
     try:
         with stream:
-            expected = args.block_size * stim_queue.channels * ctypes.sizeof(ctypes.c_float)
             timeout = args.block_size * args.buffer_size / stim_queue.samplerate
             while samples is not None:
                 samples = stim.buffer_read(args.block_size, dtype='float32')
                 sample_queue.put(samples, timeout=timeout)
-                if len(samples) < expected:
+                if len(samples) < buffer_size:
                     sample_queue.put("stop %s" % stim.name, timeout=timeout)
                     try:
                         stim = next(stimiter)
@@ -179,7 +181,7 @@ def main(argv=None):
                         break
                     gap_frames = int(args.gap * stim_queue.samplerate)
                     for _ in range(0, gap_frames, args.block_size):
-                        samples = ctypes.create_string_buffer(expected)
+                        samples = ctypes.create_string_buffer(buffer_size)
                         sample_queue.put(samples, timeout=timeout)
                     sample_queue.put("start %s" % stim.name)
             sample_queue.put(None)
