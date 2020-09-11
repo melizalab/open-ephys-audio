@@ -1,1 +1,1 @@
-from nbank.core import __version__
+from oeaudio.core import __version__
