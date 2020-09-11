@@ -12,8 +12,12 @@ Note that stimulus files are read into memory, so the total
 
 import argparse
 import logging
-
+import queue
+import threading
 import yaml
+import ctypes
+import sounddevice as sd
+
 from oeaudio import core
 
 log = logging.getLogger('oe-audio')   # root logger
@@ -62,7 +66,7 @@ def main(argv=None):
     p.add_argument("--device", "-d", help="output sound device", type=int, default=core.device_index())
     p.add_argument("--block-size", "-b", type=int, default=2048,
                    help="block size (default: %(default)s)")
-    p.add_argument("--buffer-size", "-q", type=int, default=20,
+    p.add_argument("--buffer-size", "-sample_queue", type=int, default=20,
                    help="buffer size (in blocks; default: %(default)s)")
 
     p.add_argument("--shuffle", "-S", help="shuffle order of presentation", action="store_true")
@@ -89,11 +93,12 @@ def main(argv=None):
     if args.list_devices:
         print("Available sound devices:")
         print(core.sd.query_devices())
-        return
+        p.exit(0)
 
     # load config from file
 
     # display info about the device
+    core.set_device(args.device)
     device_info = core.device_properties()
     if args.debug:
         log.debug("Playback device:")
@@ -104,10 +109,86 @@ def main(argv=None):
     # connect to open-ephys zmq socket
 
     # load the stimuli and generate an initial playback sequence
-    stimuli = core.open_stimuli(args.stimfiles)
-    stimlist = core.repeat_and_shuffle(stimuli, args.repeats, args.shuffle)
+    if not args.stimfiles:
+        p.exit(0)
+    log.info("Loading stimuli:")
+    stim_queue = core.StimulusQueue(args.stimfiles, args.repeats, args.shuffle, args.loop)
 
-    # open the audio stream
-    stream = sd.RawOutputStream(samplerate=f.samplerate, blocksize=args.blocksize,
-            device=args.device, channels=f.channels, dtype='float32',
-            callback=callback, finished_callback=event.set)
+    # create a sample queue and a semaphore. The sample queue can contain data
+    # buffers, messages, or None
+    sample_queue = queue.Queue(maxsize=args.buffer_size + 1)
+    evt = threading.Event()
+
+    def _process(outdata, frames, time, status):
+        """ Callback function for output stream thread """
+        assert frames == args.block_size, "frame count doesn't match buffer block size"
+        if status.output_underflow:
+            log.error('Output underflow: increase blocksize?')
+            raise sd.CallbackAbort
+        assert not status
+        try:
+            data = sample_queue.get_nowait()
+            if data is None:
+                raise sd.CallbackStop
+            elif isinstance(data, str):
+                # send on zmq wire
+                log.info(" - %s", data)
+            else:
+                assert (len(data) <= len(outdata)), "block has too much data"
+                outdata[:len(data)] = data
+                outdata[len(data):] = b'\x00' * (len(outdata) - len(data))
+        except queue.Empty:
+            # if the queue is empty, we just zero out the buffer
+            outdata[:] = b'\x00'
+
+    # The main thread loads data into the buffer from files in the stimulus
+    # queue. Between stimuli, it loads zeros. To stop the stream thread, we send
+    # None.
+
+    # We first need to prefill the queue so that the buffer starts full.
+    log.info("Starting playback:")
+    stimiter = iter(stim_queue)
+    stim = next(stimiter)
+    log.debug(" - prebuffering %d frames from %s", args.block_size, stim.name)
+    sample_queue.put_nowait("start %s" % stim.name)
+    for _ in range(args.buffer_size):
+        samples = stim.buffer_read(args.block_size, dtype='float32')
+        sample_queue.put_nowait(samples)
+
+    # then open the stream for writing
+    stream = sd.RawOutputStream(
+        device=args.device,
+        blocksize=args.block_size,
+        samplerate=stim_queue.samplerate,
+        channels=stim_queue.channels,
+        dtype='float32',
+        callback=_process,
+        finished_callback=evt.set)
+    try:
+        with stream:
+            expected = args.block_size * stim_queue.channels * ctypes.sizeof(ctypes.c_float)
+            timeout = args.block_size * args.buffer_size / stim_queue.samplerate
+            while samples is not None:
+                samples = stim.buffer_read(args.block_size, dtype='float32')
+                sample_queue.put(samples, timeout=timeout)
+                if len(samples) < expected:
+                    sample_queue.put("stop %s" % stim.name, timeout=timeout)
+                    try:
+                        stim = next(stimiter)
+                    except StopIteration:
+                        break
+                    gap_frames = int(args.gap * stim_queue.samplerate)
+                    for _ in range(0, gap_frames, args.block_size):
+                        samples = ctypes.create_string_buffer(expected)
+                        sample_queue.put(samples, timeout=timeout)
+                    sample_queue.put("start %s" % stim.name)
+            sample_queue.put(None)
+            evt.wait()
+            log.info("End of stimulus queue")
+    except KeyboardInterrupt:
+        p.exit('\nInterrupted by user')
+    except queue.Full:
+        # A timeout occurred, i.e. there was an error in the callback
+        p.exit(1)
+    except Exception as e:
+        p.exit(type(e).__name__ + ': ' + str(e))
