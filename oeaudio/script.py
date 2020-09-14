@@ -10,6 +10,7 @@ each stimulus.
 Note that stimulus files are read into memory, so the total
 """
 
+import os
 import argparse
 import logging
 import queue
@@ -65,26 +66,31 @@ def main(argv=None):
     p.add_argument('--debug', help="show verbose log messages", action="store_true")
 
     p.add_argument("--list-devices", "-L", help="list available sound devices and exit", action="store_true")
-    p.add_argument("--device", "-D", help="output sound device", type=int, default=core.device_index())
+    p.add_argument("--device", "-D", help="index of output sound device (default: %(default)s",
+                   type=int, default=core.device_index())
     p.add_argument("--block-size", "-b", type=int, default=2048,
                    help="block size (default: %(default)s)")
     p.add_argument("--buffer-size", "-sample_queue", type=int, default=20,
                    help="buffer size (in blocks; default: %(default)s)")
 
-    p.add_argument("--shuffle", "-S", help="shuffle order of presentation (argument specifies random seed)",
-                   nargs='?', default=None)
+    p.add_argument("--shuffle", "-S", help="shuffle order of presentation (w/ optional random seed)",
+                   nargs='?', default=None, metavar="SEED")
     p.add_argument("--loop", "-l", help="loop endlessly", action="store_true")
     p.add_argument("--repeats", "-r", help="default number of time to repeat each stimulus",
                    type=int, default=1)
     p.add_argument("--gap", "-g", help="minimum gap between stimuli (s)", type=float, default=2.0)
 
-    p.add_argument("--open-ephys-address", "-a", help="open-ephys zmq socket")
-    p.add_argument("--open-ephys-directory", "-d", help="open-ephys recording directory")
-    p.add_argument("-k", help="specify metadata for the recording (use multiple -k for multiple fields)",
+    p.add_argument("--open-ephys-address", "-a", metavar="URL", help="open-ephys zmq socket")
+    p.add_argument("--open-ephys-directory", "-d", metavar="DIR", default=os.environ['HOME'],
+                   help="open-ephys recording directory (default: %(default)s)")
+    p.add_argument("-k", help="specify metadata for the recording (use multiple -k for multiple fields). "
+                   "Note: 'animal' and 'experiment' are prepended and appended to the recording name",
                    action=ParseKeyVal, default=dict(), metavar="KEY=VALUE", dest='metadata')
 
-    p.add_argument("--load-config", "-c", help="load configuration values from file in yaml format")
-    p.add_argument("--save-config", help="save configuration values to a yaml file")
+    p.add_argument("--load-config", "-c", metavar="FILE",
+                   help="TODO: load configuration values from file in yaml format")
+    p.add_argument("--save-config", metavar="FILE",
+                   help="TODO: save configuration values to a yaml file")
 
     p.add_argument(
         "stimfiles",

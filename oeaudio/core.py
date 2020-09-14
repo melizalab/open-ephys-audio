@@ -99,40 +99,43 @@ class OpenEphysControl:
         if url is None:
             log.info("open-ephys: dummy mode (no connection)")
             return
-        with zmq.Context() as context:
-            self.socket = context.socket(zmq.REQ)
-            self.socket.RCVTIMEO = int(timeout * 1000)
-            log.info("open-ephys: connecting to %s", url)
-            self.socket.connect(url)
+        context = zmq.Context()
+        self.socket = context.socket(zmq.REQ)
+        self.socket.RCVTIMEO = int(timeout * 1000)
+        log.info("open-ephys: connecting to %s", url)
+        self.socket.connect(url)
 
-    def _send(self, message):
+    def _send(self, message, expected=None):
         # req sockets have to be read after each message
         if self.socket is None:
             return "N/A"
         else:
-            self.socket.send(message)
-            ret = self.socket.recv()
+            self.socket.send_string(message)
+            ret = self.socket.recv_string()
+            if expected is not None and ret != expected:
+                log.error(" - unexpected reply: %s", ret)
+                raise RuntimeError("open-ephys replied '%s', expecting '%s'" % (ret, expected))
             log.debug(" - reply: %s", ret)
             return ret
 
     def start_acquisition(self):
         log.info("open-ephys: starting acquisition")
-        self._send("StartAcquisition")
+        self._send("StartAcquisition", "StartedAcquisition")
 
     def stop_acquisition(self):
         log.info("open-ephys: stopping acquisition")
-        self._send("StopAquisition")
+        self._send("StopAcquisition", "StoppedAcquisition")
 
     def start_recording(self, rec_dir, prepend="", append=""):
         cmd = "StartRecord RecDir={} PrependText={} AppendText={}".format(rec_dir, prepend, append)
         log.info("open-ephys: starting recording")
-        self._send(cmd)
+        self._send(cmd, "StartedRecording")
         rec_path = self._send("GetRecordingPath")
         log.info(" - recording path: %s", rec_path)
 
     def stop_recording(self):
         log.info("open-ephys: stopping recording")
-        self._send("StopRecord")
+        self._send("StopRecord", "StoppedRecording")
 
     def message(self, text):
         """ Log a timestampped message in the recording """
