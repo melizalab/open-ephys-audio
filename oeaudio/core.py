@@ -31,10 +31,9 @@ def repeat_and_shuffle(seq, repeats=1, shuffle=False):
 
     seq = [s for f in seq for s in (f,) * repeats]
     if shuffle:
+        random.seed(shuffle)
         random.shuffle(seq)
     return seq
-
-
 
 
 class StimulusQueue:

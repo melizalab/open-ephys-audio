@@ -61,7 +61,7 @@ def main(argv=None):
     p.add_argument('-v', '--version', action="version",
                    version="%(prog)s " + core.__version__)
     p.add_argument('--debug', help="show verbose log messages", action="store_true")
-    p.add_argument("--list-devices", "-L", help="list sound devices", action="store_true")
+    p.add_argument("--list-devices", "-L", help="list available sound devices and exit", action="store_true")
 
     p.add_argument("--device", "-d", help="output sound device", type=int, default=core.device_index())
     p.add_argument("--block-size", "-b", type=int, default=2048,
@@ -69,7 +69,8 @@ def main(argv=None):
     p.add_argument("--buffer-size", "-sample_queue", type=int, default=20,
                    help="buffer size (in blocks; default: %(default)s)")
 
-    p.add_argument("--shuffle", "-S", help="shuffle order of presentation", action="store_true")
+    p.add_argument("--shuffle", "-S", help="shuffle order of presentation (argument specifies random seed)",
+                   nargs='?', default=None)
     p.add_argument("--loop", "-l", help="loop endlessly", action="store_true")
     p.add_argument("--repeats", "-r", help="default number of time to repeat each stimulus",
                    type=int, default=1)
