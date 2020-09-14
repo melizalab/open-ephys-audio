@@ -6,6 +6,7 @@ __version__ = "0.1.0"
 import logging
 
 import sounddevice as sd
+import zmq
 
 log = logging.getLogger('oe-audio')   # root logger
 
@@ -83,3 +84,57 @@ class StimulusQueue:
         s.seek(0)
         self.index += 1
         return s
+
+
+class OpenEphysControl:
+    """ A class to control open-ephys data acquisition over a zmq socket
+
+    url: the address of the host socket
+    timeout: timeout for reply from host
+
+    """
+    socket = None
+
+    def __init__(self, url, timeout=1.0):
+        if url is None:
+            log.info("open-ephys: dummy mode (no connection)")
+            return
+        with zmq.Context() as context:
+            self.socket = context.socket(zmq.REQ)
+            self.socket.RCVTIMEO = int(timeout * 1000)
+            log.info("open-ephys: connecting to %s", url)
+            self.socket.connect(url)
+
+    def _send(self, message):
+        # req sockets have to be read after each message
+        if self.socket is None:
+            return "N/A"
+        else:
+            self.socket.send(message)
+            ret = self.socket.recv()
+            log.debug(" - reply: %s", ret)
+            return ret
+
+    def start_acquisition(self):
+        log.info("open-ephys: starting acquisition")
+        self._send("StartAcquisition")
+
+    def stop_acquisition(self):
+        log.info("open-ephys: stopping acquisition")
+        self._send("StopAquisition")
+
+    def start_recording(self, rec_dir, prepend="", append=""):
+        cmd = "StartRecord RecDir={} PrependText={} AppendText={}".format(rec_dir, prepend, append)
+        log.info("open-ephys: starting recording")
+        self._send(cmd)
+        rec_path = self._send("GetRecordingPath")
+        log.info(" - recording path: %s", rec_path)
+
+    def stop_recording(self):
+        log.info("open-ephys: stopping recording")
+        self._send("StopRecord")
+
+    def message(self, text):
+        """ Log a timestampped message in the recording """
+        log.info("open-ephys: sent '%s'", text)
+        self._send(text)

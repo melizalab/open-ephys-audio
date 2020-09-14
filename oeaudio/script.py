@@ -14,6 +14,8 @@ import argparse
 import logging
 import queue
 import threading
+import time
+import json
 import yaml
 import ctypes
 import sounddevice as sd
@@ -61,9 +63,9 @@ def main(argv=None):
     p.add_argument('-v', '--version', action="version",
                    version="%(prog)s " + core.__version__)
     p.add_argument('--debug', help="show verbose log messages", action="store_true")
-    p.add_argument("--list-devices", "-L", help="list available sound devices and exit", action="store_true")
 
-    p.add_argument("--device", "-d", help="output sound device", type=int, default=core.device_index())
+    p.add_argument("--list-devices", "-L", help="list available sound devices and exit", action="store_true")
+    p.add_argument("--device", "-D", help="output sound device", type=int, default=core.device_index())
     p.add_argument("--block-size", "-b", type=int, default=2048,
                    help="block size (default: %(default)s)")
     p.add_argument("--buffer-size", "-sample_queue", type=int, default=20,
@@ -75,9 +77,12 @@ def main(argv=None):
     p.add_argument("--repeats", "-r", help="default number of time to repeat each stimulus",
                    type=int, default=1)
     p.add_argument("--gap", "-g", help="minimum gap between stimuli (s)", type=float, default=2.0)
-    p.add_argument("--socket", "-s", help="open-ephys zmq socket", default="tcp://127.0.0.1:5556")
+
+    p.add_argument("--open-ephys-address", "-a", help="open-ephys zmq socket")
+    p.add_argument("--open-ephys-directory", "-d", help="open-ephys recording directory")
     p.add_argument("-k", help="specify metadata for the recording (use multiple -k for multiple fields)",
                    action=ParseKeyVal, default=dict(), metavar="KEY=VALUE", dest='metadata')
+
     p.add_argument("--load-config", "-c", help="load configuration values from file in yaml format")
     p.add_argument("--save-config", help="save configuration values to a yaml file")
 
@@ -96,7 +101,7 @@ def main(argv=None):
         print(core.sd.query_devices())
         p.exit(0)
 
-    # load config from file
+    # TODO load config from file
 
     # display info about the device
     core.set_device(args.device)
@@ -107,13 +112,13 @@ def main(argv=None):
     else:
         log.info("Playback device: %(name)s", device_info)
 
-    # connect to open-ephys zmq socket
-
-    # load the stimuli and generate an initial playback sequence
+    log.info("Loading stimuli:")
     if not args.stimfiles:
         p.exit(0)
-    log.info("Loading stimuli:")
     stim_queue = core.StimulusQueue(args.stimfiles, args.repeats, args.shuffle, args.loop)
+
+    controller = core.OpenEphysControl(args.open_ephys_address)
+    controller.start_acquisition()
 
     # create a sample queue and a semaphore. The sample queue can contain data
     # buffers, messages, or None
@@ -133,8 +138,7 @@ def main(argv=None):
             if data is None:
                 raise sd.CallbackStop
             elif isinstance(data, str):
-                # send on zmq wire
-                log.info(" - %s", data)
+                controller.message(data)
             else:
                 assert (len(data) <= len(outdata)), "block has too much data"
                 outdata[:len(data)] = data
@@ -148,7 +152,6 @@ def main(argv=None):
     # thread, we send None.
 
     # We first need to prefill the queue so that the buffer starts full.
-    log.info("Starting playback:")
     stimiter = iter(stim_queue)
     stim = next(stimiter)
     log.debug(" - prebuffering %d frames from %s", args.block_size, stim.name)
@@ -158,6 +161,11 @@ def main(argv=None):
         sample_queue.put_nowait(samples)
         if len(samples) < buffer_size:
             break
+
+    controller.start_recording(args.open_ephys_directory,
+                               args.metadata.get("animal", ""),
+                               args.metadata.get("experiment", ""))
+    controller.message("metadata: %s" % json.dumps(args.metadata))
 
     # then open the stream for writing
     stream = sd.RawOutputStream(
@@ -176,18 +184,20 @@ def main(argv=None):
                 sample_queue.put(samples, timeout=timeout)
                 if len(samples) < buffer_size:
                     sample_queue.put("stop %s" % stim.name, timeout=timeout)
-                    try:
-                        stim = next(stimiter)
-                    except StopIteration:
-                        break
                     gap_frames = int(args.gap * stim_queue.samplerate)
                     for _ in range(0, gap_frames, args.block_size):
                         samples = ctypes.create_string_buffer(buffer_size)
                         sample_queue.put(samples, timeout=timeout)
+                    try:
+                        stim = next(stimiter)
+                    except StopIteration:
+                        break
                     sample_queue.put("start %s" % stim.name)
             sample_queue.put(None)
             evt.wait()
-            log.info("End of stimulus queue")
+            controller.stop_recording()
+            time.sleep(args.gap)
+            controller.stop_acquisition()
     except KeyboardInterrupt:
         p.exit('\nInterrupted by user')
     except queue.Full:
