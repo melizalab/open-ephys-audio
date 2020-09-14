@@ -201,13 +201,17 @@ def main(argv=None):
                     sample_queue.put("start %s" % stim.name)
             sample_queue.put(None)
             evt.wait()
-            controller.stop_recording()
-            time.sleep(args.gap)
-            controller.stop_acquisition()
     except KeyboardInterrupt:
-        p.exit('\nInterrupted by user')
+        log.info("experiment interrupted by user")
+        controller.message("experiment interrupted by user")
     except queue.Full:
         # A timeout occurred, i.e. there was an error in the callback
-        p.exit(1)
+        log.error("buffer overrun")
+        controller.message("buffer overrun error during stimulus playback")
     except Exception as e:
-        p.exit(type(e).__name__ + ': ' + str(e))
+        controller.message("unhandled exception during stimulus playback")
+        log.error(type(e).__name__ + ': ' + str(e))
+    finally:
+        controller.stop_recording()
+        time.sleep(args.gap)
+        controller.stop_acquisition()
