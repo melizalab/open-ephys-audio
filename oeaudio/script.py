@@ -125,6 +125,7 @@ def main(argv=None):
 
     controller = core.OpenEphysControl(args.open_ephys_address)
     controller.start_acquisition()
+    time.sleep(5)
 
     # create a sample queue and a semaphore. The sample queue can contain data
     # buffers, messages, or None
