@@ -6,8 +6,12 @@ import logging
 import sounddevice as sd
 import zmq
 
-log = logging.getLogger('oe-audio')   # root logger
+try:
+    import numpy as np
+except ImportError:
+    pass
 
+log = logging.getLogger('oe-audio')   # root logger
 
 def set_device(index):
     """ Set the default device """
@@ -72,7 +76,6 @@ class Stimulus:
         if self.click is None or self.fp.channels > 1:
             return self.fp.buffer_read(block_size, dtype="float32")
         else:
-            import numpy as np
             pos = self.fp.tell()
             data = self.fp.read(block_size, dtype="float32")
             sync = np.zeros_like(data)

@@ -68,9 +68,9 @@ def main(argv=None):
     p.add_argument("--list-devices", "-L", help="list available sound devices and exit", action="store_true")
     p.add_argument("--device", "-D", help="set index of output sound device (use -L to see default)",
                    type=int)
-    p.add_argument("--block-size", "-b", type=int, default=2048,
+    p.add_argument("--block-size", "-b", type=int, default=8192,
                    help="block size (default: %(default)s)")
-    p.add_argument("--buffer-size", "-sample_queue", type=int, default=20,
+    p.add_argument("--buffer-size", type=int, default=20,
                    help="buffer size (in blocks; default: %(default)s)")
 
     p.add_argument("--shuffle", "-S", help="shuffle order of presentation (w/ optional random seed)",
