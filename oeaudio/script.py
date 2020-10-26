@@ -21,7 +21,7 @@ import yaml
 import ctypes
 import sounddevice as sd
 
-from oeaudio import core
+from oeaudio import __version__
 
 log = logging.getLogger('oe-audio')   # root logger
 
@@ -62,12 +62,12 @@ def main(argv=None):
 
     p = argparse.ArgumentParser(description='present acoustic stimuli for open-ephys experiments')
     p.add_argument('-v', '--version', action="version",
-                   version="%(prog)s " + core.__version__)
+                   version="%(prog)s " + __version__)
     p.add_argument('--debug', help="show verbose log messages", action="store_true")
 
     p.add_argument("--list-devices", "-L", help="list available sound devices and exit", action="store_true")
-    p.add_argument("--device", "-D", help="index of output sound device (default: %(default)s",
-                   type=int, default=core.device_index())
+    p.add_argument("--device", "-D", help="set index of output sound device (use -L to see default)",
+                   type=int)
     p.add_argument("--block-size", "-b", type=int, default=2048,
                    help="block size (default: %(default)s)")
     p.add_argument("--buffer-size", "-sample_queue", type=int, default=20,
@@ -78,7 +78,11 @@ def main(argv=None):
     p.add_argument("--loop", "-l", help="loop endlessly", action="store_true")
     p.add_argument("--repeats", "-r", help="default number of time to repeat each stimulus",
                    type=int, default=1)
-    p.add_argument("--gap", "-g", help="minimum gap between stimuli (s)", type=float, default=2.0)
+    p.add_argument("--gap", "-g", help="minimum gap between stimuli (default: %(default)s s)",
+                   type=float, default=2.0)
+    p.add_argument("--warmup",
+                   help="pause between starting acquisition and recording (default: %(default)s s)",
+                   type=float, default=5.0)
 
     p.add_argument("--open-ephys-address", "-a", metavar="URL", help="open-ephys zmq socket")
     p.add_argument("--open-ephys-directory", "-d", metavar="DIR", default=os.environ['HOME'],
@@ -102,6 +106,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     setup_log(log, args.debug)
 
+    from oeaudio import core
     if args.list_devices:
         print("Available sound devices:")
         print(core.sd.query_devices())
@@ -110,7 +115,8 @@ def main(argv=None):
     # TODO load config from file
 
     # display info about the device
-    core.set_device(args.device)
+    if args.device is not None:
+        core.set_device(args.device)
     device_info = core.device_properties()
     if args.debug:
         log.debug("Playback device:")
@@ -125,7 +131,7 @@ def main(argv=None):
 
     controller = core.OpenEphysControl(args.open_ephys_address)
     controller.start_acquisition()
-    time.sleep(5)
+    time.sleep(args.warmup)
 
     # create a sample queue and a semaphore. The sample queue can contain data
     # buffers, messages, or None
@@ -173,6 +179,9 @@ def main(argv=None):
                                args.metadata.get("animal", ""),
                                args.metadata.get("experiment", ""))
     controller.message("metadata: %s" % json.dumps(args.metadata))
+
+    # pause for a gap before the first stimulus
+    time.sleep(args.gap)
 
     # then open the stream for writing
     stream = sd.RawOutputStream(
