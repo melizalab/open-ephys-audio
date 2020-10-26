@@ -56,22 +56,30 @@ class Stimulus:
 
     @property
     def channels(self):
-        return self.fp.channels + (click is not None)
+        if self.fp.channels == 1 and self.click is not None:
+            return 2
+        else:
+            return self.fp.channels
+
+    @property
+    def name(self):
+        return self.fp.name
 
     def seek(self, pos):
         self.fp.seek(pos)
 
     def read(self, block_size):
-        if click is None or if self.fp.channels > 1:
+        if self.click is None or self.fp.channels > 1:
             return self.fp.buffer_read(block_size, dtype="float32")
         else:
+            import numpy as np
             pos = self.fp.tell()
             data = self.fp.read(block_size, dtype="float32")
             sync = np.zeros_like(data)
             if pos == 0:
-                click_frames = int(self.click * self.samplerate)
+                click_frames = int(self.click * self.samplerate / 1000.)
                 sync[:click_frames] = 1.0
-            return np.c_[data, sync]
+            return memoryview(np.c_[data, sync]).cast('B')
 
 
 class StimulusQueue:
@@ -89,7 +97,7 @@ class StimulusQueue:
         self.repeats = repeats
         self.shuffle = shuffle
         self.loop = loop
-        data = [Stimulus(f) for f in files]
+        data = [Stimulus(f, click) for f in files]
 
         self.samplerate = data[0].samplerate
         self.channels = data[0].channels

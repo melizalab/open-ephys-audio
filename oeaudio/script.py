@@ -84,7 +84,7 @@ def main(argv=None):
                    help="pause between starting acquisition and recording (default: %(default)s s)",
                    type=float, default=5.0)
     p.add_argument("--click", "-c",
-                   help="adds a second channel with a click (argument sets duration in s)"
+                   help="adds a second channel with a click (argument sets duration in ms)"
                         "at the start of the stimulus (requires numpy)",
                    type=float)
 
