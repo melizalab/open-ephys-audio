@@ -83,6 +83,10 @@ def main(argv=None):
     p.add_argument("--warmup",
                    help="pause between starting acquisition and recording (default: %(default)s s)",
                    type=float, default=5.0)
+    p.add_argument("--click", "-c",
+                   help="adds a second channel with a click (argument sets duration in s)"
+                        "at the start of the stimulus (requires numpy)",
+                   type=float)
 
     p.add_argument("--open-ephys-address", "-a", metavar="URL", help="open-ephys zmq socket")
     p.add_argument("--open-ephys-directory", "-d", metavar="DIR", default=os.environ['HOME'],
@@ -91,7 +95,7 @@ def main(argv=None):
                    "Note: 'animal' and 'experiment' are prepended and appended to the recording name",
                    action=ParseKeyVal, default=dict(), metavar="KEY=VALUE", dest='metadata')
 
-    p.add_argument("--load-config", "-c", metavar="FILE",
+    p.add_argument("--load-config", "-C", metavar="FILE",
                    help="TODO: load configuration values from file in yaml format")
     p.add_argument("--save-config", metavar="FILE",
                    help="TODO: save configuration values to a yaml file")
@@ -127,7 +131,7 @@ def main(argv=None):
     log.info("Loading stimuli:")
     if not args.stimfiles:
         p.exit(0)
-    stim_queue = core.StimulusQueue(args.stimfiles, args.repeats, args.shuffle, args.loop)
+    stim_queue = core.StimulusQueue(args.stimfiles, args.repeats, args.shuffle, args.loop, args.click)
 
     controller = core.OpenEphysControl(args.open_ephys_address)
     controller.start_acquisition()
@@ -170,7 +174,7 @@ def main(argv=None):
     log.debug(" - prebuffering %d frames from %s", args.block_size, stim.name)
     sample_queue.put_nowait("start %s" % stim.name)
     for _ in range(args.buffer_size):
-        samples = stim.buffer_read(args.block_size, dtype='float32')
+        samples = stim.read(args.block_size)
         sample_queue.put_nowait(samples)
         if len(samples) < buffer_size:
             break
@@ -196,7 +200,7 @@ def main(argv=None):
         with stream:
             timeout = args.block_size * args.buffer_size / stim_queue.samplerate
             while samples is not None:
-                samples = stim.buffer_read(args.block_size, dtype='float32')
+                samples = stim.read(args.block_size)
                 sample_queue.put(samples, timeout=timeout)
                 if len(samples) < buffer_size:
                     sample_queue.put("stop %s" % stim.name, timeout=timeout)

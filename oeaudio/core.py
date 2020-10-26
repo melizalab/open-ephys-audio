@@ -35,26 +35,61 @@ def repeat_and_shuffle(seq, repeats=1, shuffle=False):
     return seq
 
 
-class StimulusQueue:
-    """ An object that manages a queue of stimuli with repetition, shuffling, and looping
+class Stimulus:
+    """Represents an acoustic stimulus.
 
-    The stimulus files are opened (but not read) on initialization. A RuntimeError is raised if
-    files do not exist, are unreadable, or do not have the same number of channels.
+    This is a thin wrapper around a SoundFile, but with the option to add a
+    second channel with a click at the start
+
+    """
+    def __init__(self, path, click=None):
+        import soundfile as sf
+        f = sf.SoundFile(path)
+        log.info(" - %s: %.2f s (channels=%d, samplerate=%d)",
+                 f.name, f.frames / f.samplerate, f.channels, f.samplerate)
+        self.fp = f
+        self.click = click
+
+    @property
+    def samplerate(self):
+        return self.fp.samplerate
+
+    @property
+    def channels(self):
+        return self.fp.channels + (click is not None)
+
+    def seek(self, pos):
+        self.fp.seek(pos)
+
+    def read(self, block_size):
+        if click is None or if self.fp.channels > 1:
+            return self.fp.buffer_read(block_size, dtype="float32")
+        else:
+            pos = self.fp.tell()
+            data = self.fp.read(block_size, dtype="float32")
+            sync = np.zeros_like(data)
+            if pos == 0:
+                click_frames = int(self.click * self.samplerate)
+                sync[:click_frames] = 1.0
+            return np.c_[data, sync]
+
+
+class StimulusQueue:
+    """An object that manages a queue of stimuli with repetition, shuffling, and looping
+
+    The stimulus files are opened (but not read) on initialization. A
+    RuntimeError is raised if files do not exist, are unreadable, or do not have
+    the same number of channels.
+
     """
 
-    def __init__(self, files, repeats=1, shuffle=False, loop=False):
-        import soundfile as sf
+    def __init__(self, files, repeats=1, shuffle=False, loop=False, click=None):
         assert (len(files) > 0), "No stimuli!"
         assert (repeats > 0), "Number of repeats must be a positive integer"
         self.repeats = repeats
         self.shuffle = shuffle
         self.loop = loop
-        data = []
-        for fname in files:
-            f = sf.SoundFile(fname)
-            log.info(" - %s: %.2f s (channels=%d, samplerate=%d)",
-                     f.name, f.frames / f.samplerate, f.channels, f.samplerate)
-            data.append(f)
+        data = [Stimulus(f) for f in files]
 
         self.samplerate = data[0].samplerate
         self.channels = data[0].channels
