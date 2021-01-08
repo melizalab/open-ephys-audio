@@ -11,7 +11,7 @@ try:
 except ImportError:
     pass
 
-log = logging.getLogger('oe-audio')   # root logger
+log = logging.getLogger("oe-audio")  # root logger
 
 
 def set_device(index):
@@ -47,11 +47,18 @@ class Stimulus:
     second channel with a click at the start
 
     """
+
     def __init__(self, path, click=None):
         import soundfile as sf
+
         f = sf.SoundFile(path)
-        log.info(" - %s: %.2f s (channels=%d, samplerate=%d)",
-                 f.name, f.frames / f.samplerate, f.channels, f.samplerate)
+        log.info(
+            " - %s: %.2f s (channels=%d, samplerate=%d)",
+            f.name,
+            f.frames / f.samplerate,
+            f.channels,
+            f.samplerate,
+        )
         self.fp = f
         self.click = click
 
@@ -81,9 +88,9 @@ class Stimulus:
             data = self.fp.read(block_size, dtype="float32")
             sync = np.zeros_like(data)
             if pos == 0:
-                click_frames = int(self.click * self.samplerate / 1000.)
+                click_frames = int(self.click * self.samplerate / 1000.0)
                 sync[:click_frames] = 1.0
-            return memoryview(np.c_[data, sync]).cast('B')
+            return memoryview(np.c_[data, sync]).cast("B")
 
 
 class StimulusQueue:
@@ -96,8 +103,8 @@ class StimulusQueue:
     """
 
     def __init__(self, files, repeats=1, shuffle=False, loop=False, click=None):
-        assert (len(files) > 0), "No stimuli!"
-        assert (repeats > 0), "Number of repeats must be a positive integer"
+        assert len(files) > 0, "No stimuli!"
+        assert repeats > 0, "Number of repeats must be a positive integer"
         self.repeats = repeats
         self.shuffle = shuffle
         self.loop = loop
@@ -118,6 +125,7 @@ class StimulusQueue:
 
     def __next__(self):
         import random
+
         if self.index >= len(self.stimlist):
             if not self.loop:
                 raise StopIteration
@@ -132,12 +140,13 @@ class StimulusQueue:
 
 
 class OpenEphysControl:
-    """ A class to control open-ephys data acquisition over a zmq socket
+    """A class to control open-ephys data acquisition over a zmq socket
 
     url: the address of the host socket
     timeout: timeout for reply from host
 
     """
+
     socket = None
 
     def __init__(self, url, timeout=1.0):
@@ -159,7 +168,9 @@ class OpenEphysControl:
             ret = self.socket.recv_string()
             if expected is not None and ret != expected:
                 log.error(" - unexpected reply: %s", ret)
-                raise RuntimeError("open-ephys replied '%s', expecting '%s'" % (ret, expected))
+                raise RuntimeError(
+                    "open-ephys replied '%s', expecting '%s'" % (ret, expected)
+                )
             log.debug(" - reply: %s", ret)
             return ret
 
@@ -172,7 +183,9 @@ class OpenEphysControl:
         self._send("StopAcquisition", "StoppedAcquisition")
 
     def start_recording(self, rec_dir, prepend="", append=""):
-        cmd = "StartRecord RecDir={} PrependText={} AppendText={}".format(rec_dir, prepend, append)
+        cmd = "StartRecord RecDir={} PrependText={} AppendText={}".format(
+            rec_dir, prepend, append
+        )
         log.info("open-ephys: starting recording")
         self._send(cmd, "StartedRecording")
         rec_path = self._send("GetRecordingPath")

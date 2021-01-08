@@ -22,7 +22,7 @@ import sounddevice as sd
 
 from oeaudio import __version__
 
-log = logging.getLogger('oe-audio')   # root logger
+log = logging.getLogger("oe-audio")  # root logger
 
 
 def setup_log(log, debug=False):
@@ -47,8 +47,10 @@ def positivefloat_or_none(arg):
 
 class ParseKeyVal(argparse.Action):
     """ Custom action that parses arguments formed as key=value pair """
+
     def parse_value(self, value):
         import ast
+
         try:
             return ast.literal_eval(value)
         except (ValueError, SyntaxError):
@@ -58,69 +60,132 @@ class ParseKeyVal(argparse.Action):
         kv = getattr(namespace, self.dest)
         if kv is None:
             kv = dict()
-        if not arg.count('=') == 1:
-            raise ValueError(
-                "-k %s argument badly formed; needs key=value" % arg)
+        if not arg.count("=") == 1:
+            raise ValueError("-k %s argument badly formed; needs key=value" % arg)
         else:
-            key, val = arg.split('=')
+            key, val = arg.split("=")
             kv[key] = self.parse_value(val)
         setattr(namespace, self.dest, kv)
 
 
 def main(argv=None):
 
-    p = argparse.ArgumentParser(description='present acoustic stimuli for open-ephys experiments')
-    p.add_argument('-v', '--version', action="version",
-                   version="%(prog)s " + __version__)
-    p.add_argument('--debug', help="show verbose log messages", action="store_true")
+    p = argparse.ArgumentParser(
+        description="present acoustic stimuli for open-ephys experiments"
+    )
+    p.add_argument(
+        "-v", "--version", action="version", version="%(prog)s " + __version__
+    )
+    p.add_argument("--debug", help="show verbose log messages", action="store_true")
 
-    p.add_argument("--list-devices", "-L", help="list available sound devices and exit", action="store_true")
-    p.add_argument("--device", "-D", help="set index of output sound device (use -L to see default)",
-                   type=int)
-    p.add_argument("--block-size", "-b", type=int, default=8192,
-                   help="block size (default: %(default)s)")
-    p.add_argument("--buffer-size", type=int, default=20,
-                   help="buffer size (in blocks; default: %(default)s)")
+    p.add_argument(
+        "--list-devices",
+        "-L",
+        help="list available sound devices and exit",
+        action="store_true",
+    )
+    p.add_argument(
+        "--device",
+        "-D",
+        help="set index of output sound device (use -L to see default)",
+        type=int,
+    )
+    p.add_argument(
+        "--block-size",
+        "-b",
+        type=int,
+        default=8192,
+        help="block size (default: %(default)s)",
+    )
+    p.add_argument(
+        "--buffer-size",
+        type=int,
+        default=20,
+        help="buffer size (in blocks; default: %(default)s)",
+    )
 
-    p.add_argument("--shuffle", "-S", help="shuffle order of presentation (w/ optional random seed)",
-                   nargs='?', default=None, metavar="SEED")
+    p.add_argument(
+        "--shuffle",
+        "-S",
+        help="shuffle order of presentation (w/ optional random seed)",
+        nargs="?",
+        default=None,
+        metavar="SEED",
+    )
     p.add_argument("--loop", "-l", help="loop endlessly", action="store_true")
-    p.add_argument("--repeats", "-r", help="default number of time to repeat each stimulus",
-                   type=int, default=1)
-    p.add_argument("--gap", "-g", help="minimum gap between stimuli (default: %(default)s s)",
-                   type=float, default=2.0)
-    p.add_argument("--warmup",
-                   help="pause between starting acquisition and recording (default: %(default)s s)",
-                   type=float, default=5.0)
-    p.add_argument("--click-duration", "-c",
-                   help="for 1-channel stimuli, sets the duration (in ms)"
-                   " of the click added to the second (sync) channel (set to 0 to disable)",
-                   default=2.0,
-                   type=positivefloat_or_none)
+    p.add_argument(
+        "--repeats",
+        "-r",
+        help="default number of time to repeat each stimulus",
+        type=int,
+        default=1,
+    )
+    p.add_argument(
+        "--gap",
+        "-g",
+        help="minimum gap between stimuli (default: %(default)s s)",
+        type=float,
+        default=2.0,
+    )
+    p.add_argument(
+        "--warmup",
+        help="pause between starting acquisition and recording (default: %(default)s s)",
+        type=float,
+        default=5.0,
+    )
+    p.add_argument(
+        "--click-duration",
+        "-c",
+        help="for 1-channel stimuli, sets the duration (in ms)"
+        " of the click added to the second (sync) channel (set to 0 to disable)",
+        default=2.0,
+        type=positivefloat_or_none,
+    )
 
-    p.add_argument("--open-ephys-address", "-a", metavar="URL", help="open-ephys zmq socket")
-    p.add_argument("--open-ephys-directory", "-d", metavar="DIR", default=os.environ['HOME'],
-                   help="open-ephys recording directory (default: %(default)s)")
-    p.add_argument("-k", help="specify metadata for the recording (use multiple -k for multiple fields). "
-                   "Note: 'animal' and 'experiment' are prepended and appended to the recording name",
-                   action=ParseKeyVal, default=dict(), metavar="KEY=VALUE", dest='metadata')
+    p.add_argument(
+        "--open-ephys-address", "-a", metavar="URL", help="open-ephys zmq socket"
+    )
+    p.add_argument(
+        "--open-ephys-directory",
+        "-d",
+        metavar="DIR",
+        default=os.environ["HOME"],
+        help="open-ephys recording directory (default: %(default)s)",
+    )
+    p.add_argument(
+        "-k",
+        help="specify metadata for the recording (use multiple -k for multiple fields). "
+        "Note: 'animal' and 'experiment' are prepended and appended to the recording name",
+        action=ParseKeyVal,
+        default=dict(),
+        metavar="KEY=VALUE",
+        dest="metadata",
+    )
 
-    p.add_argument("--load-config", "-C", metavar="FILE",
-                   help="TODO: load configuration values from file in yaml format")
-    p.add_argument("--save-config", metavar="FILE",
-                   help="TODO: save configuration values to a yaml file")
+    p.add_argument(
+        "--load-config",
+        "-C",
+        metavar="FILE",
+        help="TODO: load configuration values from file in yaml format",
+    )
+    p.add_argument(
+        "--save-config",
+        metavar="FILE",
+        help="TODO: save configuration values to a yaml file",
+    )
 
     p.add_argument(
         "stimfiles",
         nargs="*",
         metavar="stim",
-        help="sound files containing an acoustic stimulus. All stimuli must have the same samplerate and number of channels"
+        help="sound files containing an acoustic stimulus. All stimuli must have the same samplerate and number of channels",
     )
 
     args = p.parse_args(argv)
     setup_log(log, args.debug)
 
     from oeaudio import core
+
     if args.list_devices:
         print("Available sound devices:")
         print(core.sd.query_devices())
@@ -152,7 +217,9 @@ def main(argv=None):
     log.info("Loading stimuli:")
     if not args.stimfiles:
         p.exit(0)
-    stim_queue = core.StimulusQueue(args.stimfiles, args.repeats, args.shuffle, args.loop, args.click_duration)
+    stim_queue = core.StimulusQueue(
+        args.stimfiles, args.repeats, args.shuffle, args.loop, args.click_duration
+    )
 
     controller = core.OpenEphysControl(args.open_ephys_address)
     controller.start_acquisition()
@@ -168,7 +235,7 @@ def main(argv=None):
         """ Callback function for output stream thread """
         assert frames == args.block_size, "frame count doesn't match buffer block size"
         if status.output_underflow:
-            log.error('Output underflow: increase blocksize?')
+            log.error("Output underflow: increase blocksize?")
             raise sd.CallbackAbort
         assert not status
         try:
@@ -178,12 +245,12 @@ def main(argv=None):
             elif isinstance(data, str):
                 controller.message(data)
             else:
-                assert (len(data) <= len(outdata)), "block has too much data"
-                outdata[:len(data)] = data
-                outdata[len(data):] = b'\x00' * (len(outdata) - len(data))
+                assert len(data) <= len(outdata), "block has too much data"
+                outdata[: len(data)] = data
+                outdata[len(data) :] = b"\x00" * (len(outdata) - len(data))
         except queue.Empty:
             # if the queue is empty, we just zero out the buffer
-            outdata[:] = b'\x00'
+            outdata[:] = b"\x00"
 
     # The main thread sends data into the queue from files in the stimulus
     # queue. Between stimuli, it sends blocks of zeros. To stop the stream
@@ -200,9 +267,11 @@ def main(argv=None):
         if len(samples) < buffer_size:
             break
 
-    controller.start_recording(args.open_ephys_directory,
-                               args.metadata.get("animal", ""),
-                               args.metadata.get("experiment", ""))
+    controller.start_recording(
+        args.open_ephys_directory,
+        args.metadata.get("animal", ""),
+        args.metadata.get("experiment", ""),
+    )
     controller.message("metadata: %s" % json.dumps(args.metadata))
 
     # pause for a gap before the first stimulus
@@ -214,9 +283,10 @@ def main(argv=None):
         blocksize=args.block_size,
         samplerate=stim_queue.samplerate,
         channels=stim_queue.channels,
-        dtype='float32',
+        dtype="float32",
         callback=_process,
-        finished_callback=evt.set)
+        finished_callback=evt.set,
+    )
     try:
         with stream:
             timeout = args.block_size * args.buffer_size / stim_queue.samplerate
@@ -245,7 +315,7 @@ def main(argv=None):
         controller.message("buffer overrun error during stimulus playback")
     except Exception as e:
         controller.message("unhandled exception during stimulus playback")
-        log.error(type(e).__name__ + ': ' + str(e))
+        log.error(type(e).__name__ + ": " + str(e))
     finally:
         controller.stop_recording()
         time.sleep(args.gap)
