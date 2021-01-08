@@ -13,6 +13,7 @@ except ImportError:
 
 log = logging.getLogger('oe-audio')   # root logger
 
+
 def set_device(index):
     """ Set the default device """
     sd.default.device = index

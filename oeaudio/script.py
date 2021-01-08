@@ -4,10 +4,9 @@
 
 Stimuli are read from sound files (e.g. wave format) with 1 or 2 channels. The
 second channel is typically used as a synchronization signal. For one-channel
-files, there is an option to add a click to the second channel at the start of
-each stimulus.
+files, by default a click is added to the second channel at the start of each
+stimulus.
 
-Note that stimulus files are read into memory, so the total
 """
 
 import os
@@ -36,8 +35,18 @@ def setup_log(log, debug=False):
     log.addHandler(ch)
 
 
-class ParseKeyVal(argparse.Action):
+def positivefloat_or_none(arg):
+    """ Parses arg as a positive float, otherwise None """
+    try:
+        value = float(arg)
+    except ValueError:
+        return None
+    if value > 0:
+        return value
 
+
+class ParseKeyVal(argparse.Action):
+    """ Custom action that parses arguments formed as key=value pair """
     def parse_value(self, value):
         import ast
         try:
@@ -83,10 +92,11 @@ def main(argv=None):
     p.add_argument("--warmup",
                    help="pause between starting acquisition and recording (default: %(default)s s)",
                    type=float, default=5.0)
-    p.add_argument("--click", "-c",
-                   help="adds a second channel with a click (argument sets duration in ms)"
-                        "at the start of the stimulus (requires numpy)",
-                   type=float)
+    p.add_argument("--click-duration", "-c",
+                   help="for 1-channel stimuli, sets the duration (in ms)"
+                   " of the click added to the second (sync) channel (set to 0 to disable)",
+                   default=2.0,
+                   type=positivefloat_or_none)
 
     p.add_argument("--open-ephys-address", "-a", metavar="URL", help="open-ephys zmq socket")
     p.add_argument("--open-ephys-directory", "-d", metavar="DIR", default=os.environ['HOME'],
@@ -117,21 +127,32 @@ def main(argv=None):
         p.exit(0)
 
     # TODO load config from file
+    log.info("Configuration: ")
+    log.info(" - block size: %d samples", args.block_size)
+    log.info(" - buffer size: %d blocks", args.buffer_size)
+    log.info(" - gap: %3.2f s", args.gap)
+    log.info(" - warmup pause: %3.2f s", args.warmup)
+    log.info(" - repeats: %d", args.repeats)
+    log.info(" - loop? %s", args.loop)
+    if args.shuffle:
+        log.info(" - shuffling with random seed %s", args.shuffle)
+    if args.click_duration:
+        log.info(" - will add %3.2f s click to sync channel", args.click_duration)
 
     # display info about the device
     if args.device is not None:
         core.set_device(args.device)
     device_info = core.device_properties()
     if args.debug:
-        log.debug("Playback device:")
+        log.debug(" - playback device:")
         log.debug(yaml.dump(device_info))
     else:
-        log.info("Playback device: %(name)s", device_info)
+        log.info(" - playback device: %(name)s", device_info)
 
     log.info("Loading stimuli:")
     if not args.stimfiles:
         p.exit(0)
-    stim_queue = core.StimulusQueue(args.stimfiles, args.repeats, args.shuffle, args.loop, args.click)
+    stim_queue = core.StimulusQueue(args.stimfiles, args.repeats, args.shuffle, args.loop, args.click_duration)
 
     controller = core.OpenEphysControl(args.open_ephys_address)
     controller.start_acquisition()
