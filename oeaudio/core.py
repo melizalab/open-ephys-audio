@@ -81,16 +81,17 @@ class Stimulus:
         self.fp.seek(pos)
 
     def read(self, block_size):
-        if self.click is None or self.fp.channels > 1:
-            return self.fp.buffer_read(block_size, dtype="float32")
-        else:
-            pos = self.fp.tell()
-            data = self.fp.read(block_size, dtype="float32")
-            sync = np.zeros_like(data)
-            if pos == 0:
-                click_frames = int(self.click * self.samplerate / 1000.0)
-                sync[:click_frames] = 1.0
-            return memoryview(np.c_[data, sync]).cast("B")
+        pos = self.fp.tell()
+        data = self.fp.buffer_read(block_size, dtype="float32")
+        if self.click is None or self.fp.channels > 1 or len(data) == 0:
+            return data
+        data = np.frombuffer(data, dtype="float32")
+        sync = np.zeros_like(data)
+        if pos == 0:
+            click_frames = int(self.click * self.samplerate / 1000.0)
+            sync[:click_frames] = 1.0
+        data = np.column_stack((data, sync))
+        return memoryview(data).cast("B")
 
 
 class StimulusQueue:
