@@ -11,6 +11,7 @@ stimulus.
 
 import os
 import argparse
+import datetime
 import logging
 import queue
 import threading
@@ -36,7 +37,7 @@ def setup_log(log, debug=False):
 
 
 def positivefloat_or_none(arg):
-    """ Parses arg as a positive float, otherwise None """
+    """Parses arg as a positive float, otherwise None"""
     try:
         value = float(arg)
     except ValueError:
@@ -46,7 +47,7 @@ def positivefloat_or_none(arg):
 
 
 class ParseKeyVal(argparse.Action):
-    """ Custom action that parses arguments formed as key=value pair """
+    """Custom action that parses arguments formed as key=value pair"""
 
     def parse_value(self, value):
         import ast
@@ -69,7 +70,6 @@ class ParseKeyVal(argparse.Action):
 
 
 def main(argv=None):
-
     p = argparse.ArgumentParser(
         description="present acoustic stimuli for open-ephys experiments"
     )
@@ -221,6 +221,7 @@ def main(argv=None):
         args.stimfiles, args.repeats, args.shuffle, args.loop, args.click_duration
     )
 
+    # if no address is supplied, a dummy instance is returned
     controller = core.OpenEphysControl(args.open_ephys_address)
     controller.start_acquisition()
     time.sleep(args.warmup)
@@ -232,7 +233,7 @@ def main(argv=None):
     buffer_size = args.block_size * stim_queue.channels * ctypes.sizeof(ctypes.c_float)
 
     def _process(outdata, frames, time, status):
-        """ Callback function for output stream thread """
+        """Callback function for output stream thread"""
         assert frames == args.block_size, "frame count doesn't match buffer block size"
         if status.output_underflow:
             log.error("Output underflow: increase blocksize?")

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 # -*- mode: python -*-
-
+import datetime
 import logging
+from typing import Optional
 
 import sounddevice as sd
 import zmq
@@ -15,12 +16,12 @@ log = logging.getLogger("oe-audio")  # root logger
 
 
 def set_device(index):
-    """ Set the default device """
+    """Set the default device"""
     sd.default.device = index
 
 
 def device_index():
-    """ Returns the numerical index of the current default (playback) device """
+    """Returns the numerical index of the current default (playback) device"""
     return sd.default.device[1]
 
 
@@ -30,7 +31,7 @@ def device_properties():
 
 
 def repeat_and_shuffle(seq, repeats=1, shuffle=False):
-    """ For a sequence, generate a (shuffled) list with each item repeated a fixed number of times."""
+    """For a sequence, generate a (shuffled) list with each item repeated a fixed number of times."""
     import random
 
     seq = [s for f in seq for s in (f,) * repeats]
@@ -150,22 +151,25 @@ class OpenEphysControl:
 
     socket = None
 
-    def __init__(self, url, timeout=1.0):
-        if url is None:
+    def __init__(self, url: Optional[str], timeout=1.0):
+        if url is not None:
+            context = zmq.Context()
+            self.socket = context.socket(zmq.REQ)
+            self.socket.RCVTIMEO = int(timeout * 1000)
+            log.info("open-ephys: connecting to %s", url)
+            self.socket.connect(url)
+        else:
             log.info("open-ephys: dummy mode (no connection)")
-            return
-        context = zmq.Context()
-        self.socket = context.socket(zmq.REQ)
-        self.socket.RCVTIMEO = int(timeout * 1000)
-        log.info("open-ephys: connecting to %s", url)
-        self.socket.connect(url)
 
     def _send(self, message, expected=None):
-        # req sockets have to be read after each message
+        if self.logfile is not None:
+            timestamp = datetime.datetime.now()
+            self.logfile.write(f'{timestamp},"{message}"\n')
         if self.socket is None:
             return "N/A"
         else:
             self.socket.send_string(message)
+            # req sockets have to be read after each message
             ret = self.socket.recv_string()
             if expected is not None and ret != expected:
                 log.error(" - unexpected reply: %s", ret)
@@ -177,11 +181,17 @@ class OpenEphysControl:
 
     def start_acquisition(self):
         log.info("open-ephys: starting acquisition")
+        now = datetime.datetime.now()
+        logfile_name = now.strftime("oeaudio_%Y%m%d-%H%M%S.log")
+        log.info("logging open-ephys messages to %s", logfile_name)
+        self.logfile = open(logfile_name, "wt")
         self._send("StartAcquisition", "StartedAcquisition")
 
     def stop_acquisition(self):
         log.info("open-ephys: stopping acquisition")
         self._send("StopAcquisition", "StoppedAcquisition")
+        self.logfile.close()
+        self.logfile = None
 
     def start_recording(self, rec_dir, prepend="", append=""):
         cmd = "StartRecord RecDir={} PrependText={} AppendText={}".format(
@@ -197,6 +207,6 @@ class OpenEphysControl:
         self._send("StopRecord", "StoppedRecording")
 
     def message(self, text):
-        """ Log a timestampped message in the recording """
+        """Log a timestampped message in the recording"""
         log.info("open-ephys: sent '%s'", text)
         self._send(text)
