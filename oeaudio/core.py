@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # -*- mode: python -*-
 import datetime
 import logging
@@ -174,7 +173,7 @@ class OpenEphysControl:
             if expected is not None and ret != expected:
                 log.error(" - unexpected reply: %s", ret)
                 raise RuntimeError(
-                    "open-ephys replied '%s', expecting '%s'" % (ret, expected)
+                    f"open-ephys replied '{ret}', expecting '{expected}'"
                 )
             log.debug(" - reply: %s", ret)
             return ret
@@ -184,7 +183,7 @@ class OpenEphysControl:
         now = datetime.datetime.now()
         logfile_name = now.strftime("oeaudio_%Y%m%d-%H%M%S.log")
         log.info("logging open-ephys messages to %s", logfile_name)
-        self.logfile = open(logfile_name, "wt")
+        self.logfile = open(logfile_name, "w")
         self._send("StartAcquisition", "StartedAcquisition")
 
     def stop_acquisition(self):
@@ -194,9 +193,7 @@ class OpenEphysControl:
         self.logfile = None
 
     def start_recording(self, rec_dir, prepend="", append=""):
-        cmd = "StartRecord RecDir={} PrependText={} AppendText={}".format(
-            rec_dir, prepend, append
-        )
+        cmd = f"StartRecord RecDir={rec_dir} PrependText={prepend} AppendText={append}"
         log.info("open-ephys: starting recording")
         self._send(cmd, "StartedRecording")
         rec_path = self._send("GetRecordingPath")

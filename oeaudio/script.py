@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # -*- mode: python -*-
 """Presents acoustic stimuli for open-ephys experiments
 
@@ -9,17 +8,17 @@ stimulus.
 
 """
 
-import os
 import argparse
-import datetime
+import ctypes
+import json
 import logging
+import os
 import queue
 import threading
 import time
-import json
-import yaml
-import ctypes
+
 import sounddevice as sd
+import yaml
 
 from oeaudio import __version__
 
