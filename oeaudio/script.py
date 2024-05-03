@@ -238,6 +238,8 @@ def main(argv=None):
             log.error("Output underflow: increase blocksize?")
             raise sd.CallbackAbort
         assert not status
+        # zero out the buffer to make sure there's nothing hanging around from last time
+        outdata[:] = b"\x00" * len(outdata)
         try:
             data = sample_queue.get_nowait()
             if data is None:
@@ -247,10 +249,9 @@ def main(argv=None):
             else:
                 assert len(data) <= len(outdata), "block has too much data"
                 outdata[: len(data)] = data
-                outdata[len(data) :] = b"\x00" * (len(outdata) - len(data))
         except queue.Empty:
-            # if the queue is empty, we just zero out the buffer
-            outdata[:] = b"\x00"
+            # if the queue is empty, we just leave the buffer empty
+            pass
 
     # The main thread sends data into the queue from files in the stimulus
     # queue. Between stimuli, it sends blocks of zeros. To stop the stream

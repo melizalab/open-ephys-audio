@@ -86,6 +86,7 @@ class Stimulus:
         if self.click is None or self.fp.channels > 1 or len(data) == 0:
             return data
         data = np.frombuffer(data, dtype="float32")
+        # log.debug("- read %d samples", data.size)
         sync = np.zeros_like(data)
         if pos == 0:
             click_frames = int(self.click * self.samplerate / 1000.0)
