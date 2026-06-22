@@ -200,9 +200,11 @@ class OpenEphysControl:
             proc_req = requests.get("http://localhost:37497/api/processors")
             proc_contents = proc_req.json()
             ntwrk_proc = next((proc for proc in proc_contents if proc['name']=='Network Events'), None)
-            assert ntwrk_proc is not None, "Network Events node not detected in open-ephys GUI!"
+            if ntwrk_proc is None:
+                raise RuntimeError("NetworkEvents node not detected in open-ephys GUI.")
             brdcst_param = next((prm for prm in ntwrk_proc if prm['name']=='broadcast_all_messages'), {'value': 0})
-            assert int(brdcst_param['value']) == 1,  "Set Broadcast to ON in Network Events node before recording!"
+            if int(brdcst_param['value']) != 1:
+                raise RuntimeError("Set Broadcast to ON in Network Events node before recording!")
 
         cmd = f"StartRecord RecDir={rec_dir} PrependText={prepend}_ AppendText=_{append}"
         log.info("open-ephys: starting recording")
