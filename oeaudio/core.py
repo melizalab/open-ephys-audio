@@ -194,7 +194,7 @@ class OpenEphysControl:
         self.logfile = None
 
     def start_recording(self, rec_dir, prepend="", append=""):
-        cmd = f"StartRecord RecDir={rec_dir} PrependText={prepend} AppendText={append}"
+        cmd = f"StartRecord RecDir={rec_dir} PrependText={prepend}_ AppendText=_{append}"
         log.info("open-ephys: starting recording")
         self._send(cmd, "StartedRecording")
         rec_path = self._send("GetRecordingPath")
