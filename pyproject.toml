@@ -1,17 +1,68 @@
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "open-ephys-audio"
+version = "0.1.8"
+description = "Scripts for acoustic stimulus presentation with open-ephys"
+readme = "README.rst"
+requires-python = ">=3.11"
+license = {text = "BSD 3-Clause License"}
+authors = [
+    {name = "C Daniel Meliza", email = "dan@meliza.org"},
+]
+maintainers = [
+    {name = "C Daniel Meliza", email = "dan@meliza.org"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "numpy>=2.4.6",
+    "pyyaml>=6.0.3",
+    "pyzmq>=27.1.0",
+    "requests>=2.34.2",
+    "sounddevice>=0.5.5",
+    "soundfile>=0.14.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/melizalab/open-ephys-audio"
+
+[project.scripts]
+oeaudio-present = "oeaudio.script:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.3",
+]
 
 [tool.ruff]
-target-version = "py37"
+target-version = "py311"
+extend-exclude = ["attic", "venv"]
 
 [tool.ruff.lint]
-extend-select = [
-  "B",   # flake8-bugbear
-  "I",   # isort
-  "PGH", # pygrep-hooks
-  "RUF", # Ruff-specific
-  "NPY201", # numpy 2.0 migration
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "PGH", # pygrep-hooks
+    "RUF", # Ruff-specific
+    "UP",  # pyupgrade
 ]
-preview = true
+ignore = ["E221", "E501", "E701", "RUF012"]
 
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["oeaudio"]

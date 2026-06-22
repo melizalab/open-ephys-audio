@@ -61,7 +61,7 @@ class ParseKeyVal(argparse.Action):
         if kv is None:
             kv = dict()
         if not arg.count("=") == 1:
-            raise ValueError("-k %s argument badly formed; needs key=value" % arg)
+            raise ValueError(f"-k {arg} argument badly formed; needs key=value")
         else:
             key, val = arg.split("=")
             kv[key] = self.parse_value(val)
@@ -261,7 +261,7 @@ def main(argv=None):
     stimiter = iter(stim_queue)
     stim = next(stimiter)
     log.debug(" - prebuffering %d frames from %s", args.block_size, stim.name)
-    sample_queue.put_nowait("start %s" % stim.name)
+    sample_queue.put_nowait(f"start {stim.name}")
     for _ in range(args.buffer_size):
         samples = stim.read(args.block_size)
         sample_queue.put_nowait(samples)
@@ -273,7 +273,7 @@ def main(argv=None):
         args.metadata.get("animal", ""),
         args.metadata.get("experiment", ""),
     )
-    controller.message("metadata: %s" % json.dumps(args.metadata))
+    controller.message(f"metadata: {json.dumps(args.metadata)}")
 
     # pause for a gap before the first stimulus
     time.sleep(args.gap)
@@ -295,7 +295,7 @@ def main(argv=None):
                 samples = stim.read(args.block_size)
                 sample_queue.put(samples, timeout=timeout)
                 if len(samples) < buffer_size:
-                    sample_queue.put("stop %s" % stim.name, timeout=timeout)
+                    sample_queue.put(f"stop {stim.name}", timeout=timeout)
                     gap_frames = int(args.gap * stim_queue.samplerate)
                     for _ in range(0, gap_frames, args.block_size):
                         samples = ctypes.create_string_buffer(buffer_size)
@@ -304,7 +304,7 @@ def main(argv=None):
                         stim = next(stimiter)
                     except StopIteration:
                         break
-                    sample_queue.put("start %s" % stim.name)
+                    sample_queue.put(f"start {stim.name}")
             sample_queue.put(None)
             evt.wait()
     except KeyboardInterrupt:

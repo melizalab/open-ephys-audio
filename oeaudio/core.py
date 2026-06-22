@@ -1,9 +1,8 @@
 # -*- mode: python -*-
 import datetime
 import logging
-import requests
-from typing import Optional
 
+import requests
 import sounddevice as sd
 import zmq
 
@@ -152,7 +151,7 @@ class OpenEphysControl:
 
     socket = None
 
-    def __init__(self, url: Optional[str], timeout=1.0):
+    def __init__(self, url: str | None, timeout=1.0):
         if url is not None:
             context = zmq.Context()
             self.socket = context.socket(zmq.REQ)
@@ -199,14 +198,24 @@ class OpenEphysControl:
             log.debug("Checking for Broadcast option in Network Events node.")
             proc_req = requests.get("http://localhost:37497/api/processors")
             proc_contents = proc_req.json()
-            ntwrk_proc = next((proc for proc in proc_contents if proc['name']=='Network Events'), None)
+            ntwrk_proc = next(
+                (proc for proc in proc_contents if proc["name"] == "Network Events"),
+                None,
+            )
             if ntwrk_proc is None:
                 raise RuntimeError("NetworkEvents node not detected in open-ephys GUI.")
-            brdcst_param = next((prm for prm in ntwrk_proc if prm['name']=='broadcast_all_messages'), {'value': 0})
-            if int(brdcst_param['value']) != 1:
-                raise RuntimeError("Set Broadcast to ON in Network Events node before recording!")
+            brdcst_param = next(
+                (prm for prm in ntwrk_proc if prm["name"] == "broadcast_all_messages"),
+                {"value": 0},
+            )
+            if int(brdcst_param["value"]) != 1:
+                raise RuntimeError(
+                    "Set Broadcast to ON in Network Events node before recording!"
+                )
 
-        cmd = f"StartRecord RecDir={rec_dir} PrependText={prepend}_ AppendText=_{append}"
+        cmd = (
+            f"StartRecord RecDir={rec_dir} PrependText={prepend}_ AppendText=_{append}"
+        )
         log.info("open-ephys: starting recording")
         self._send(cmd, "StartedRecording")
         rec_path = self._send("GetRecordingPath")
