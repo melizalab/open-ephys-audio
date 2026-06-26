@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-ephys-audio"
-version = "0.1.8"
+version = "0.1.9"
 description = "Scripts for acoustic stimulus presentation with open-ephys"
 readme = "README.rst"
 requires-python = ">=3.11"
